@@ -150,13 +150,9 @@ function addMarkerHiro(){
 	
 	markerRoot.add(group);
 	
-
-	var cylinder = new THREE.Mesh( new THREE.CylinderGeometry( 0, 0.05, 3, 32 ), new THREE.MeshBasicMaterial( {color: 0xffffff} ) );
-	cylinder.position.y = 0.5;
-	markerRoot.add( cylinder );
 	var cylinder = new THREE.Mesh( new THREE.CylinderGeometry( 0, 0.2, 0.5, 32 ), new THREE.MeshBasicMaterial( {color: 0xffffff} ) );
 	markerRoot.add (cylinder);
-	cylinder.position.set(-2.3,0,0);
+	cylinder.position.set(-2.3,0,0.1);
 	cylinder.rotation.z = -Math.PI/2;
 	
 	group.rotation.x -= Math.PI/2;
