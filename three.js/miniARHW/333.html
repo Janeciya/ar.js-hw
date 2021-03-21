@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<style>
+#heading{
+	 position:absolute;
+	 text-align:center;
+	 width:100vw;
+   
+}		
+</style> 
+<body> 
+<!-- three.js library -->
+<script src='../examples/vendor/three.js/build/three.min.js'></script>
+<script src="../examples/vendor/three.js/examples/js/libs/stats.min.js"></script>
+<!-- ar.js -->
+<script src="../build/ar.js"></script>
+<script>THREEx.ArToolkitContext.baseURL = '../'</script>
+
+<body style='margin : 0px; overflow: hidden; font-family: Monospace;'>
+<div style='position: absolute; top: 10px; width:100%; text-align: center; z-index: 1;'>
+<a href="https://github.com/jeromeetienne/AR.js/" target="_blank">AR.js</a>
+	 - three.js<br>
+Minimal Version
+<div id= "heading" >
+  <button id="button" style="width:20%"> Press </button>
+  <p id = "text" style = "color :black" style="width:20%"> Which color?? </p>
+</div>
+</div>
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script>
+
+// global variables
+var renderer, scene, camera;
+var stats;
+var arToolkitSource, arToolKitContext;
+var markerHiro;
+
+var angle = 0;
+var group;
+var omega = 0;  
+var isActive = false;
+var rotate;
+var pointer;
+init();
+animate();
+
+$("#button").click(function() {
+  isActive = ! isActive;
+  rotate = !rotate;
+});
+function init() {
+
+	// init renderer
+	renderer	= new THREE.WebGLRenderer({
+		// antialias	: true,
+		alpha: true
+	});
+	renderer.setClearColor(new THREE.Color('lightgrey'), 0)
+	// renderer.setPixelRatio( 1/2 );
+	renderer.setSize( window.innerWidth, window.innerHeight );
+	renderer.domElement.style.position = 'absolute'
+	renderer.domElement.style.top = '0px'
+	renderer.domElement.style.left = '0px'
+	document.body.appendChild( renderer.domElement );
+
+	stats = new Stats();
+	document.body.appendChild( stats.dom );
+
+	// init scene and camera
+	scene	= new THREE.Scene();
+	
+	// Create a BASIC camera
+	camera = new THREE.Camera();
+	scene.add(camera);
+
+	////////////////////////////////////////////////////////////////////////////////
+	//          handle arToolkitSource
+	////////////////////////////////////////////////////////////////////////////////
+
+	arToolkitSource = new THREEx.ArToolkitSource({
+		// to read from the webcam 
+		sourceType : 'webcam',
+	})
+
+	arToolkitSource.init(function onReady(){
+		onResize()
+	})
+	
+	// handle resize
+	window.addEventListener('resize', function(){
+		onResize()
+	})
+	function onResize(){
+		arToolkitSource.onResize()	
+		arToolkitSource.copySizeTo(renderer.domElement)	
+		if( arToolkitContext.arController !== null ){
+			arToolkitSource.copySizeTo(arToolkitContext.arController.canvas)	
+		}	
+	}
+	////////////////////////////////////////////////////////////////////////////////
+	//          initialize arToolkitContext
+	////////////////////////////////////////////////////////////////////////////////
+	
+	arToolkitContext = new THREEx.ArToolkitContext({
+		cameraParametersUrl: THREEx.ArToolkitContext.baseURL + '../data/data/camera_para.dat',
+		detectionMode: 'mono',
+		maxDetectionRate: 30,
+		canvasWidth: 80*3,
+		canvasHeight: 60*3,
+	})
+	// initialize it
+	arToolkitContext.init(function onCompleted(){
+		// copy projection matrix to camera
+		camera.projectionMatrix.copy( arToolkitContext.getProjectionMatrix() );
+	})
+
+	markerHiro = addMarkerHiro();
+	scene.add (markerHiro); 
+	
+}
+	
+function addMarkerHiro(){
+	let markerRoot = new THREE.Group()
+
+	var artoolkitMarker = new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
+		type : 'pattern',
+		patternUrl : THREEx.ArToolkitContext.baseURL + '../data/data/patt.hiro'
+	})
+
+/*
+	// add a torus knot & a transparent box	
+	var geometry	= new THREE.TorusKnotGeometry(0.3,0.1,64,16);
+	var material	= new THREE.MeshNormalMaterial();
+	var mesh	= new THREE.Mesh( geometry, material );
+	mesh.position.y	= 0.5
+	markerRoot.add (mesh);
+	
+	mesh = new THREE.Mesh (new THREE.BoxGeometry(1,1,1), 
+				new THREE.MeshNormalMaterial({transparent:true, opacity:0.3}));
+	mesh.position.y	= 0.5
+	markerRoot.add (mesh);
+*/
+
+	group = new THREE.Group();
+
+	var circle0 = new THREE.Mesh (new THREE.CircleGeometry( 2, 32 , Math.PI/2, 2*Math.PI/3), new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSIde } ));
+	group.add(circle0);
+	var circle1 = new THREE.Mesh (new THREE.CircleGeometry( 2, 32 , Math.PI/2 + 2/3*Math.PI, 2*Math.PI/3), new THREE.MeshBasicMaterial( { color: 0x00ff00, side: THREE.DoubleSIde } ));
+	group.add(circle1);
+	var circle2 = new THREE.Mesh (new THREE.CircleGeometry( 2, 32 ,  Math.PI/2 - 2/3*Math.PI, 2*Math.PI/3), new THREE.MeshBasicMaterial( { color: 0x0000ff, side: THREE.DoubleSIde } ));
+	group.add(circle2);
+	group.position.set(0, 0, 0);
+	markerRoot.add(group);
+	var cylinder = new THREE.Mesh( new THREE.CylinderGeometry( 0, 0.2, 0.5, 32 ), new THREE.MeshBasicMaterial( {color: 0xffffff} ) );
+	markerRoot.add (cylinder);
+	cylinder.position.set(-2.2,0,0.8);
+	cylinder.rotation.z = -Math.PI/2;
+
+
+	
+	
+	group.rotation.x -= Math.PI/2;
+	
+	
+	return markerRoot;
+}	
+function clamp (x, xLo, xHi) {
+	if (x < xLo) return xLo;
+	if (x > xHi) return xHi;
+	else return x;
+}
+
+function rotating(){
+	var Angle = (angle%(Math.PI*2));	
+	
+		if(Angle >= 0 && Angle < Math.PI*2/3){
+			$('#text').css ('color', 'red'); 
+			$('#text').text('Red');
+		}
+		else if(Angle >= Math.PI*2/3 && Angle < Math.PI*4/3){
+			$('#text').css ('color', 'blue');
+			$('#text').text('Blue');
+		}
+		else if(Angle >= Math.PI*4/3 && Angle < Math.PI*2){
+			$('#text').css ('color', 'green');
+			$('#text').text('green');  
+		}
+	
+
+
+}
+
+function animate() {
+	requestAnimationFrame (animate);
+	stats.update();
+	
+	if( arToolkitSource.ready === false )	return
+	arToolkitContext.update( arToolkitSource.domElement )
+	
+	var dt = 0.1;
+	var maxOmega = 10;
+	
+	if (isActive) {
+		omega = omega + 5*dt;  
+	} 
+	else {
+		omega = omega - .15*dt;    
+	}
+	omega = clamp (omega, 0, maxOmega);
+
+	angle += omega*dt;
+	markerHiro.children[0].rotation.z = angle;
+	rotating();
+
+	
+	renderer.render (scene, camera);	
+}
+</script></body>

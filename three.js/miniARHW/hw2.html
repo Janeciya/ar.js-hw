@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<style>
+
+#heading{
+	 position:absolute;
+	 text-align:center;
+	 width:100vw;
+}		
+</style> 
+<!-- three.js library -->
+<script src='../examples/vendor/three.js/build/three.min.js'></script>
+<script src="../examples/vendor/three.js/examples/js/libs/stats.min.js"></script>
+<!-- ar.js -->
+<script src="../build/ar.js"></script>
+<script>THREEx.ArToolkitContext.baseURL = '../'</script>
+
+<body style='margin : 0px; overflow: hidden; font-family: Monospace;'>
+<div style='position: absolute; top: 10px; width:100%; text-align: center; z-index: 1;'>
+<a href="https://github.com/jeromeetienne/AR.js/" target="_blank">AR.js</a>
+	 - three.js mobile performance<br>
+Minimal Version
+</div>
+
+<div id= "heading" style='position: absolute; top: 10px; width:100%; text-align: center; z-index: 1;'>
+  <br>
+  <br>
+  <h3>HW2<h3>
+  <button id="button" style="width:20%"> Press </button>
+  <h3><p id = "text" style = "color :black" style="width:20%"> Which color?? </p><h3>
+</div>
+</div>
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+
+<script>
+
+// global variables
+var renderer, scene, camera;
+var stats;
+var arToolKitSource, arToolKitContext;
+var markerHiro;
+
+var angle = 0;
+var group;
+var omega = 0;  
+var isActive = false;
+var rotate;
+
+init();
+animate();
+
+$("#button").click(function() {
+  isActive =! isActive;
+  rotate = !rotate;
+});
+
+function init() {
+
+	// init renderer
+	renderer	= new THREE.WebGLRenderer({
+		// antialias	: true,
+		alpha: true
+	});
+	renderer.setClearColor(new THREE.Color('lightgrey'), 0)
+	// renderer.setPixelRatio( 1/2 );
+	renderer.setSize( window.innerWidth, window.innerHeight );
+	renderer.domElement.style.position = 'absolute'
+	renderer.domElement.style.top = '0px'
+	renderer.domElement.style.left = '0px'
+	document.body.appendChild( renderer.domElement );
+
+	stats = new Stats();
+	document.body.appendChild( stats.dom );
+
+	// init scene and camera
+	scene	= new THREE.Scene();
+	
+	// Create a BASIC camera
+	camera = new THREE.Camera();
+	scene.add(camera);
+
+	////////////////////////////////////////////////////////////////////////////////
+	//          handle arToolkitSource
+	////////////////////////////////////////////////////////////////////////////////
+
+	arToolkitSource = new THREEx.ArToolkitSource({
+		// to read from the webcam 
+		sourceType : 'webcam',
+	})
+
+	arToolkitSource.init(function onReady(){
+		onResize()
+	})
+	
+	// handle resize
+	window.addEventListener('resize', function(){
+		onResize()
+	})
+	function onResize(){
+		arToolkitSource.onResize()	
+		arToolkitSource.copySizeTo(renderer.domElement)	
+		if( arToolkitContext.arController !== null ){
+			arToolkitSource.copySizeTo(arToolkitContext.arController.canvas)	
+		}	
+	}
+	////////////////////////////////////////////////////////////////////////////////
+	//          initialize arToolkitContext
+	////////////////////////////////////////////////////////////////////////////////
+	
+	arToolkitContext = new THREEx.ArToolkitContext({
+		cameraParametersUrl: THREEx.ArToolkitContext.baseURL + '../data/data/camera_para.dat',
+		detectionMode: 'mono',
+		maxDetectionRate: 30,
+		canvasWidth: 80*3,
+		canvasHeight: 60*3,
+	})
+	// initialize it
+	arToolkitContext.init(function onCompleted(){
+		// copy projection matrix to camera
+		camera.projectionMatrix.copy( arToolkitContext.getProjectionMatrix() );
+	})
+
+	markerHiro = addMarkerHiro();
+	scene.add (markerHiro); 
+/*	
+	var light = new THREE.PointLight( 0xffffff, 1, 100 );
+	light.position.set( 5, 5, 5 );
+	scene.add( light );
+	*/
+}
+	
+function addMarkerHiro(){
+	let markerRoot = new THREE.Group()
+
+	var artoolkitMarker = new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
+		type : 'pattern',
+		patternUrl : THREEx.ArToolkitContext.baseURL + '../data/data/patt.hiro'
+	})
+	
+	
+	group = new THREE.Group();
+	//scene.add(group);
+  
+	var circle0 = new THREE.Mesh (new THREE.CircleGeometry( 2, 32 , Math.PI/2, 2*Math.PI/3), new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSIde } ));
+	group.add(circle0);
+	var circle1 = new THREE.Mesh (new THREE.CircleGeometry( 2, 32 , Math.PI/2 + 2/3*Math.PI, 2*Math.PI/3), new THREE.MeshBasicMaterial( { color: 0x00ff00, side: THREE.DoubleSIde } ));
+	group.add(circle1);
+	var circle2 = new THREE.Mesh (new THREE.CircleGeometry( 2, 32 ,  Math.PI/2 - 2/3*Math.PI, 2*Math.PI/3), new THREE.MeshBasicMaterial( { color: 0x0000ff, side: THREE.DoubleSIde } ));
+	group.add(circle2);
+	
+	markerRoot.add(group);
+	
+
+	var cylinder = new THREE.Mesh( new THREE.CylinderGeometry( 0, 0.05, 3, 32 ), new THREE.MeshBasicMaterial( {color: 0xffffff} ) );
+	cylinder.position.y = 0.5;
+	markerRoot.add( cylinder );
+	var cylinder = new THREE.Mesh( new THREE.CylinderGeometry( 0, 0.2, 0.5, 32 ), new THREE.MeshBasicMaterial( {color: 0xffffff} ) );
+	markerRoot.add (cylinder);
+	cylinder.position.set(-2.3,0,0);
+	cylinder.rotation.z = -Math.PI/2;
+	
+	group.rotation.x -= Math.PI/2;
+	
+	return markerRoot;
+}	
+
+function rotating(){
+	var Angle = (angle%(Math.PI*2));
+
+		if(Angle >= Math.PI/2 && Angle < Math.PI*7/6){
+			$('#text').css ('color', 'Blue'); 
+			$('#text').text('Blue');
+		}
+		else if(Angle >= 7/6*Math.PI && Angle < Math.PI*11/6){
+			$('#text').css ('color', 'Green');
+			$('#text').text('Green');
+		}
+		else {
+			$('#text').css ('color', 'red');
+			$('#text').text('red');  
+		}
+	
+}
+
+function animate() {
+	requestAnimationFrame (animate);
+	stats.update();
+	
+	if( arToolkitSource.ready === false )	return
+	arToolkitContext.update( arToolkitSource.domElement )
+	
+	var dt = 0.1;
+	var maxOmega = 5;
+
+	if(isActive){
+		omega = omega+5*dt;
+	}
+	else{
+		omega = omega-0.1*dt;
+	}
+	omega = clamp(omega,0,maxOmega);
+
+	angle += omega*dt;
+	markerHiro.children[0].rotation.z = angle;
+	rotating();
+
+	renderer.render (scene, camera);	
+}
+
+function clamp(x,xLo,xHi){
+	if(x<xLo)return xLo;
+	if(x>xHi)return xHi;
+	else return x;
+}
+</script></body>
