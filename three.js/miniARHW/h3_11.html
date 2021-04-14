@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<!-- three.js library -->
+<script src='../examples/vendor/three.js/build/three.min.js'></script>
+<script src="../examples/vendor/three.js/examples/js/libs/stats.min.js"></script>
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script src="https://threejs.org/build/three.min.js"></script>
+<script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+<!-- ar.js -->
+<script src="../build/ar.js"></script>
+<script>THREEx.ArToolkitContext.baseURL = '../'</script>
+
+<body style='margin : 0px; overflow: hidden; font-family: Monospace;'>
+<div style='position:absolute;top:15vh;text-align:center;color:yellow;width:100%'>
+<p id='touch'></p>
+<p id='ratio'></p>
+<h3><p id='text' style ="color:red;background:white;">
+		color
+	</p></h3>
+</div>
+<script>
+
+class Button {
+	constructor (size, x, y){
+		this.size = size;
+		this.centerX = x;
+		this.centerY = y;
+	}
+	d1To (v) { // 1-norm
+		return Math.abs (v[0]-this.centerX) + Math.abs(v[1]-this.centerY);
+	}
+	d2To (v) { // 2-norm
+		return Math.sqrt ( (v[0]-this.centerX)*(v[0]-this.centerX) 
+				+ (v[1]-this.centerY)*(v[1]-this.centerY) );
+	}
+	dInfTo (v) { // inf-norm
+		return Math.max( Math.abs (v[0]-this.centerX), Math.abs(v[1]-this.centerY) )
+	}
+}
+
+var renderer, stats;
+var scene, camera, sceneHUD, cameraHUD;
+var cylinder, button, markerRoot, cubeSpin = false; 
+var arToolkitSource, arToolkitContext;
+/////////////
+var whRatio, halfW, halfH;
+var button1;
+var _iOSDevice;
+var angle =0;
+var dt = 0.2;
+var maxOmega = 10;
+var omega = 0;
+
+init();
+animate();
+
+function init() {
+
+	// https://stackoverflow.com/questions/9038625/detect-if-device-is-ios?utm_medium=organic&utm_source=google_rich_qa&utm_campaign=google_rich_qa
+	let _iOSDevice = !!navigator.platform.match(/iPhone|iPod|iPad/);
+
+	console.log ('iOS: ' + _iOSDevice)
+
+
+	renderer	= new THREE.WebGLRenderer({
+		// antialias	: true,
+		alpha: true
+	});
+	renderer.setClearColor(new THREE.Color('lightgrey'), 0)
+ 	//renderer.setPixelRatio( 1/2 );
+	renderer.setSize( window.innerWidth, window.innerHeight );
+	renderer.domElement.style.position = 'absolute'
+	renderer.domElement.style.top = '0px'
+	renderer.domElement.style.left = '0px'
+	document.body.appendChild( renderer.domElement );
+	
+	// width/height ratio
+	whRatio = window.innerWidth/window.innerHeight;
+
+
+	// for multi-pass rendering
+	renderer.autoClear = false;
+		
+	// init scene and camera
+	scene	= new THREE.Scene();
+	// Create a camera
+	camera = new THREE.Camera();
+	scene.add(camera);
+	
+	// for HUD scene
+	sceneHUD = new THREE.Scene();
+	
+	// eye-coordinate bounds
+	halfH = 10;
+	halfW = halfH * whRatio;
+	
+	cameraHUD = new THREE.OrthographicCamera (-halfW,halfW, halfH,-halfH, -10,10);
+
+
+	////////////////////////////////////////////////////
+	// create a button to toggle rotation
+	//
+	var loader = new THREE.TextureLoader();
+	loader.setCrossOrigin('');
+	// load a resource
+	loader.load(
+		// resource URL
+		'https://i.imgur.com/GKk4xDt.png',
+		// Function when resource is loaded
+		function(texture) {
+		// do something with the texture
+		// Plane with default texture coordinates [0,1]x[0,1]
+		var texMat = new THREE.MeshBasicMaterial({
+		map: texture
+		});
+		var button = new THREE.Mesh(new THREE.CircleGeometry(2, 20), texMat);
+		button.position.set (button1.centerX, button1.centerY, 0);
+		sceneHUD.add(button);
+		},
+	);
+	
+	var buttonSize = halfH/3;
+	button = new THREE.Mesh (new THREE.CircleGeometry(1,32), 
+			new THREE.MeshBasicMaterial({color:"yellow", transparent:true, opacity:0.8}));	
+	button1 = new Button (buttonSize, 0, -halfH/2);
+	//button.position.set (button1.centerX, button1.centerY, 0);
+	//sceneHUD.add (button);
+	
+	
+	////////////////////////////////////////////////////////////////////////////////
+	//          handle arToolkitSource
+	////////////////////////////////////////////////////////////////////////////////
+
+	arToolkitSource = new THREEx.ArToolkitSource({
+		// to read from the webcam 
+		sourceType : 'webcam',
+
+		// to read from an image
+		// sourceType : 'image',
+		// sourceUrl : THREEx.ArToolkitContext.baseURL + '../data/images/img.jpg',		
+
+		// to read from a video
+		// sourceType : 'video',
+		// sourceUrl : THREEx.ArToolkitContext.baseURL + '../data/videos/headtracking.mp4',		
+	})
+
+	arToolkitSource.init(function onReady(){
+		onResize()
+	})
+	
+	////////////////////////////////////////////////////////////////////////////////
+	//          initialize arToolkitContext
+	////////////////////////////////////////////////////////////////////////////////
+	
+
+	// create atToolkitContext
+	arToolkitContext = new THREEx.ArToolkitContext({
+		cameraParametersUrl: THREEx.ArToolkitContext.baseURL + '../data/data/camera_para.dat',
+		detectionMode: 'mono',
+		maxDetectionRate: 30,
+		canvasWidth: 80*3,
+		canvasHeight: 60*3,
+	})
+	// initialize it
+	arToolkitContext.init(function onCompleted(){
+		// copy projection matrix to camera
+		camera.projectionMatrix.copy( arToolkitContext.getProjectionMatrix() );
+	})
+	
+	////////////////////////////////////////////////////////////////////////////////
+	//          Create a ArMarkerControls
+	////////////////////////////////////////////////////////////////////////////////
+	
+	markerRoot = new THREE.Group
+	scene.add(markerRoot)
+	var artoolkitMarker = new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
+		type : 'pattern',
+		patternUrl : THREEx.ArToolkitContext.baseURL + '../data/data/patt.hiro'
+		// patternUrl : THREEx.ArToolkitContext.baseURL + '../data/data/patt.kanji'
+	})
+
+	// add a boxGeometry
+
+	group = new THREE.Group();
+	markerRoot.add (group);
+	//red	
+	let geometry0 = new THREE.CircleGeometry( 1.5, 32,0,2*Math.PI/3);
+	let material0 = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide} );
+	let circle0 = new THREE.Mesh( geometry0, material0 );
+	group.add( circle0 );  
+	//green
+	let geometry1 = new THREE.CircleGeometry( 1.5, 32,2/3*Math.PI,2*Math.PI/3);
+	let material1 = new THREE.MeshBasicMaterial( { color: 0x00ff00 , side: THREE.DoubleSide} );
+	let circle1 = new THREE.Mesh( geometry1, material1 );
+	group.add( circle1 );  
+	//blue   
+	let geometry2 = new THREE.CircleGeometry( 1.5, 32,4/3*Math.PI,2*Math.PI/3);
+	let material2 = new THREE.MeshBasicMaterial( { color: 0x0000ff , side: THREE.DoubleSide} );
+	let circle2 = new THREE.Mesh( geometry2, material2 );
+	group.add( circle2 );
+	group.rotation.x = -Math.PI/2;
+	
+	group1 = new THREE.Group();
+	markerRoot.add (group1);
+	cylinder = new THREE.Mesh( new THREE.CylinderGeometry( 0, 0.05, 1, 32 ), new THREE.MeshBasicMaterial( {color: 0xffffff} ) );
+	group1.add( cylinder );
+	cylinder.position.z = -0.5;
+	cylinder.rotation.x = -Math.PI/2;
+	let geometry = new THREE.CircleGeometry( 0.05,32,0,2*Math.PI);
+	let material = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide} );
+	let circle = new THREE.Mesh( geometry, material );
+	circle.rotation.x = -Math.PI/2;
+	group1.add( circle );
+
+	//////////////////////////////////////////////////////////////////////////////////
+	//		render the whole thing on the page
+	//////////////////////////////////////////////////////////////////////////////////
+	stats = new Stats();
+	document.body.appendChild( stats.dom );
+	
+
+	// handle resize: can be iPAD change orientation
+	window.addEventListener('resize', function(){
+		onResize()
+	})
+	
+	if (_iOSDevice)
+    	window.addEventListener('touchstart', onTouchStart, false);
+	else
+		window.addEventListener ('mousedown', onMouseDown, false);
+
+}
+
+function animate() {
+	stats.update();
+	requestAnimationFrame (animate);
+	
+	if( arToolkitSource.ready === false )	return
+	arToolkitContext.update( arToolkitSource.domElement )
+
+	renderer.clear();
+	renderer.render (scene, camera);
+	button.material.visible = markerRoot.visible;
+	renderer.render (sceneHUD, cameraHUD);
+
+	if (cubeSpin){
+		omega = omega + 5*dt;  
+	} else {
+		omega = omega - .15*dt;    
+	}
+		omega = clamp (omega, 0, maxOmega);
+	
+	
+	if((group1.rotation.y % (Math.PI*2)) >= 5/6*Math.PI & (group1.rotation.y % (Math.PI*2)) < 9/6*Math.PI){
+		document.getElementById('text').innerHTML = 'blue';
+		document.getElementById('text').style.color = 'blue';
+	}
+	
+	else if((group1.rotation.y % (Math.PI*2)) >= 1/6*Math.PI & (group1.rotation.y % (Math.PI*2)) < 5/6*Math.PI){
+		document.getElementById('text').innerHTML = 'green';
+		document.getElementById('text').style.color = 'green';
+	}
+	
+	else {
+		document.getElementById('text').innerHTML = 'red';
+		document.getElementById('text').style.color = 'red';
+	}
+	
+	
+	
+	angle += omega*dt;	
+	group1.rotation.y = angle;
+	
+}
+	
+function onResize(){
+	arToolkitSource.onResize()	
+	arToolkitSource.copySizeTo(renderer.domElement)	
+	if( arToolkitContext.arController !== null ){
+		arToolkitSource.copySizeTo(arToolkitContext.arController.canvas)	
+	}	
+	
+	$('#ratio').text ('resize: width: ' + window.innerWidth + ' height: ' + window.innerHeight)
+	
+	whRatio = window.innerWidth/window.innerHeight;
+	 halfW = halfH * whRatio;
+	cameraHUD.left = -halfW;
+	cameraHUD.right = halfW;
+	cameraHUD.top = halfH;
+	cameraHUD.bottom = -halfH;
+	//cameraHUD.updateProjectionMatrix();
+	// ideally, this is needed, 
+	// but commented out gives better result (in Chrome emulator)
+	
+	
+/*	
+  AR world resize: controlled by arToolKit
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+*/  
+  //renderer.setSize(window.innerWidth, window.innerHeight);
+		
+}
+	
+function pickCompute (ndcX, ndcY) {
+
+	// use 2D algorithm 	
+	let dist = button1.dInfTo ([halfW * ndcX, halfH * ndcY]);	
+	$('#touch').text ('Mouse-dist-Button: ' + dist.toFixed(2))
+	
+	if (dist < button1.size/2) {
+		console.log ('picked')
+		cubeSpin = !cubeSpin;
+	} else {
+		console.log ('no hit')
+	}
+
+}
+
+function onMouseDown (event) {
+	console.log ('in mouse down')
+	event.preventDefault();
+	let ndcX = (event.clientX / window.innerWidth) * 2 - 1;
+	let ndcY = -(event.clientY / window.innerHeight) * 2 + 1;
+
+	pickCompute (ndcX, ndcY);		
+}	
+
+function onTouchStart (event) {
+	console.log ('in touch start')
+
+   if (event.touches.length == 1) {
+        
+		event.preventDefault();
+		let ndcX = ( event.touches[0].pageX / window.innerWidth ) * 2 - 1;
+		let ndcY = - ( event.touches[0].pageY / window.innerHeight ) * 2 + 1;
+	
+		pickCompute (ndcX, ndcY);		
+		
+	}	
+}	
+function clamp (x, xLo, xHi) {
+	if (x < xLo) return xLo;
+  if (x > xHi) return xHi;
+  else return x;
+}
+</script>
+</body>
