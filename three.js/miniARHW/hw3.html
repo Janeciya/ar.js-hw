@@ -4,7 +4,6 @@
 <script src='../examples/vendor/three.js/build/three.min.js'></script>
 <script src="../examples/vendor/three.js/examples/js/libs/stats.min.js"></script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<!-- ar.js -->
 <script src="../build/ar.js"></script>
 <script>THREEx.ArToolkitContext.baseURL = '../'</script>
 
@@ -22,20 +21,24 @@
 <script>
 
 class Button {
-	constructor (size, x, y){
-		this.size = size;
-		this.centerX = x;
-		this.centerY = y;
+	constructor (cx, cy, size, colorString = 'yellow', map = null){
+		this.centerX = cx;  // HUD-coord
+		this.centerY = cy;
+		this.size = size;  // circle radius
+		let material = new THREE.MeshBasicMaterial({color: colorString, transparent: true, opacity:0.7});
+		if (map) 
+		   material.map = map;
+		this.mesh = new THREE.Mesh (new THREE.CircleGeometry (size, 36), material );
+	    this.mesh.position.set (cx, cy, 0);
 	}
-	d1To (v) { // 1-norm
-		return Math.abs (v[0]-this.centerX) + Math.abs(v[1]-this.centerY);
+	
+	setLocation (lx, ly) { // 2D-HUD 
+	    this.mesh.position.set (lx, ly, 0);
 	}
+	
 	d2To (v) { // 2-norm
 		return Math.sqrt ( (v[0]-this.centerX)*(v[0]-this.centerX) 
 				+ (v[1]-this.centerY)*(v[1]-this.centerY) );
-	}
-	dInfTo (v) { // inf-norm
-		return Math.max( Math.abs (v[0]-this.centerX), Math.abs(v[1]-this.centerY) )
 	}
 }
 
@@ -52,6 +55,9 @@ var angle = 0;
 var omega = 0;  
 var dt = 0.1;
 var maxOmega = 5;
+var isAction = false,state=1;
+var rotate;
+var pointer;
 
 init();
 animate();
@@ -102,32 +108,12 @@ function init() {
 	////////////////////////////////////////////////////
 	// create a button to toggle rotation
 	//
-	var loader = new THREE.TextureLoader();
-	loader.setCrossOrigin('');
-	// load a resource
-	
-	loader.load(
-		// resource URL
-		'https://i.imgur.com/KJ4pS2e.png',
-		// Function when resource is loaded
-		function(texture) {
-		// do something with the texture
-		// Plane with default texture coordinates [0,1]x[0,1]
-		var texMat = new THREE.MeshBasicMaterial({
-		map: texture
-		});
-		button = new THREE.Mesh(new THREE.PlaneGeometry(5, 3), texMat);
-		button.position.set (button1.centerX, button1.centerY, 0);
-		sceneHUD.add(button);
-		},
-	);
-	
-	var buttonSize = halfH/3;
-	//button = new THREE.Mesh (new THREE.PlaneGeometry(buttonSize, buttonSize), 
-		//new THREE.MeshBasicMaterial({color:"yellow", transparent:true, opacity:0.8}));	
+	/*var buttonSize = halfH/3;
+	button = new THREE.Mesh (new THREE.PlaneGeometry(buttonSize, buttonSize), 
+			new THREE.MeshBasicMaterial({color:"yellow", transparent:true, opacity:0.8}));	
 	button1 = new Button (buttonSize, 0, -halfH/2);
-	//button.position.set (button1.centerX, button1.centerY, 0);
-	//sceneHUD.add (button);
+	button.position.set (button1.centerX, button1.centerY, 0);
+	sceneHUD.add (button);*/
 	
 	
 	////////////////////////////////////////////////////////////////////////////////
@@ -181,44 +167,55 @@ function init() {
 		patternUrl : THREEx.ArToolkitContext.baseURL + '../data/data/patt.hiro'
 		// patternUrl : THREEx.ArToolkitContext.baseURL + '../data/data/patt.kanji'
 	})
+
+	// add a boxGeometry
+	var pointLight = new THREE.PointLight (0xffffff);
+	pointLight.position.set (100,200,-100);
+	//scene.add (pointLight);
 	
 	group = new THREE.Group();
-	
+
 	var circle0 = new THREE.Mesh (new THREE.CircleGeometry( 2, 32 , Math.PI/2, 2*Math.PI/3), new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSIde } ));
 	group.add(circle0);
 	var circle1 = new THREE.Mesh (new THREE.CircleGeometry( 2, 32 , Math.PI/2 + 2/3*Math.PI, 2*Math.PI/3), new THREE.MeshBasicMaterial( { color: 0x00ff00, side: THREE.DoubleSIde } ));
 	group.add(circle1);
 	var circle2 = new THREE.Mesh (new THREE.CircleGeometry( 2, 32 ,  Math.PI/2 - 2/3*Math.PI, 2*Math.PI/3), new THREE.MeshBasicMaterial( { color: 0x0000ff, side: THREE.DoubleSIde } ));
 	group.add(circle2);
+	group.position.set(0, 0, 0);
 	markerRoot.add(group);
-	group.rotation.x -= Math.PI/2;
-	
 	group1 = new THREE.Group();
-	
-	var cylinder = new THREE.Mesh( new THREE.CylinderGeometry( 0, 0.1, 1, 32 ), new THREE.MeshBasicMaterial( {color: 0xffffff} ) );
-	group1.add (cylinder);
+	markerRoot.add (group1);
+	cylinder = new THREE.Mesh( new THREE.CylinderGeometry( 0, 0.05, 1, 32 ), new THREE.MeshPhongMaterial( {color: 0xffffff} ) );
+	group1.add( cylinder );
 	cylinder.position.z = -0.5;
 	cylinder.rotation.x = -Math.PI/2;
-	
-	var circle = new THREE.Mesh (new THREE.CircleGeometry( 0.1, 32 , 0, 2*Math.PI), new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSIde } ));
+	let geometry = new THREE.CircleGeometry( 0.05,32,0,2*Math.PI);
+	let material = new THREE.MeshPhongMaterial( { color: 0xffffff, side: THREE.DoubleSide} );
+	let circle = new THREE.Mesh( geometry, material );
 	circle.rotation.x = -Math.PI/2;
 	group1.add( circle );
-	markerRoot.add(group1);
+	group1.add(pointLight);
+
+
 	
+	
+	group.rotation.x -= Math.PI/2;
+	let loader = new THREE.TextureLoader();
+	loader.setCrossOrigin(''); // 重要！
+	loader.load(
+    	// resource URL
+    	'https://i.imgur.com/KJ4pS2e.png',
 
-	// add a boxGeometry
+    	// Function when resource is loaded
+    	function(texture) {
+      		console.log ('texture loaded ...')
+			// texture load完，再建button
+			var buttonSize = halfH/3; // radius
+			button1 = new Button (halfW/2, -halfH/2, buttonSize, 'white', texture); 
+			sceneHUD.add (button1.mesh);
+    	},
 
-	/*let geometry	= new THREE.BoxGeometry(1,1,1);
-	let material	= new THREE.MeshNormalMaterial({
-		transparent : true,
-		opacity: 0.5,
-		side: THREE.DoubleSide
-	}); 
-	mesh	= new THREE.Mesh( geometry, material );
-	mesh.position.y	= geometry.parameters.height/2
-		
-	markerRoot.add (mesh);*/
-
+  	);
 	//////////////////////////////////////////////////////////////////////////////////
 	//		render the whole thing on the page
 	//////////////////////////////////////////////////////////////////////////////////
@@ -231,28 +228,17 @@ function init() {
 		onResize()
 	})
 	
-	if (_iOSDevice)
-    	window.addEventListener('touchstart', onTouchStart, false);
+	if (_iOSDevice){
+		window.addEventListener('touchstart', onTouchStart, false);
+		window.addEventListener('touchend', onTouchEnd, false);
+	}
+    	
 	else
 		window.addEventListener ('mousedown', onMouseDown, false);
+		window.addEventListener ('mouseup', onMouseUp, false);
 
 }
-function rotating(){
-	var Angle = (angle%(Math.PI*2));
-		if(Angle >= 0 && Angle < Math.PI*2/3){
-			$('#text').css ('color', 'red'); 
-			$('#text').text('red');
-		}
-		else if(Angle >= Math.PI*2/3 && Angle < Math.PI*4/3){
-			$('#text').css ('color', 'Green');
-			$('#text').text('Green');
-		}
-		else {
-			$('#text').css ('color', 'Blue');
-			$('#text').text('Blue');  
-		}
-		
-}
+
 function animate() {
 	stats.update();
 	requestAnimationFrame (animate);
@@ -262,12 +248,12 @@ function animate() {
 
 	renderer.clear();
 	renderer.render (scene, camera);
-	button.material.visible = markerRoot.visible;
+	button1.mesh.material.visible = markerRoot.visible;
 	renderer.render (sceneHUD, cameraHUD);
 
 	//if (cubeSpin)
 	//	mesh.rotation.x += 0.1
-	if(cubeSpin){
+	if(isAction){
 		omega = omega+5*dt;
 	}
 	else{
@@ -277,12 +263,35 @@ function animate() {
 	omega = clamp(omega,0,maxOmega);
 	angle += omega*dt;
 	group1.rotation.y = angle;
+	
 	rotating();
 
 	renderer.render (scene, camera);	
 	
 }
-	
+function clamp (x, xLo, xHi) {
+	if (x < xLo) return xLo;
+	if (x > xHi) return xHi;
+	else return x;
+}
+
+function rotating(){
+	var Angle = (angle%(Math.PI*2));
+
+		if(Angle >= 4/3*Math.PI && Angle < Math.PI*2){
+			$('#text').css ('color', 'Blue'); 
+			$('#text').text('Blue');
+		}
+		else if(Angle >= 2/3*Math.PI && Angle < Math.PI*4/3){
+			$('#text').css ('color', 'Green');
+			$('#text').text('Green');
+		}
+		else {
+			$('#text').css ('color', 'red');
+			$('#text').text('red');  
+		}
+
+}
 function onResize(){
 	arToolkitSource.onResize()	
 	arToolkitSource.copySizeTo(renderer.domElement)	
@@ -314,17 +323,26 @@ function onResize(){
 	
 function pickCompute (ndcX, ndcY) {
 
-	// use 2D algorithm 	
-	let dist = button1.dInfTo ([halfW * ndcX, halfH * ndcY]);	
-	$('#touch').text ('Mouse-dist-Button: ' + dist.toFixed(2))
+	// use 2D algorithm, in HUD-coord
+	let HUD_coord = [halfW*ndcX, halfH*ndcY]
+		
+	let dist = button1.d2To (HUD_coord);	
+	let printStr = [ dist.toFixed(2), HUD_coord[0].toFixed(2), HUD_coord[1].toFixed(2) ];
 	
-	if (dist < button1.size/2) {
+	$('#touch').text ( `[${printStr[0]}]: (${printStr[1]}, ${printStr[2]})`);
+	
+	if (dist < button1.size) {  // distance VS. radius
 		console.log ('picked')
-		cubeSpin = !cubeSpin;
+		isAction = !isAction;
 	} else {
 		console.log ('no hit')
 	}
 
+}
+
+function onMouseUp (event) {
+	// do nothing yet ...
+	isAction = false;
 }
 
 function onMouseDown (event) {
@@ -332,8 +350,10 @@ function onMouseDown (event) {
 	event.preventDefault();
 	let ndcX = (event.clientX / window.innerWidth) * 2 - 1;
 	let ndcY = -(event.clientY / window.innerHeight) * 2 + 1;
-
-	pickCompute (ndcX, ndcY);		
+	//state += 1;
+	pickCompute (ndcX, ndcY);	
+	if(state.length >0)
+		isAction = true;
 }	
 
 function onTouchStart (event) {
@@ -348,11 +368,17 @@ function onTouchStart (event) {
 		pickCompute (ndcX, ndcY);		
 		
 	}	
-}	
-function clamp(x,xLo,xHi){
-	if(x<xLo)return xLo;
-	if(x>xHi)return xHi;
-	else return x;
+}
+
+function onTouchEnd (event) {
+	console.log ('in touch end')
+	event.preventDefault();
+   if (isAction) {
+        
+		isAction=!isAction;
+				
+		
+	}	
 }
 </script>
 </body>

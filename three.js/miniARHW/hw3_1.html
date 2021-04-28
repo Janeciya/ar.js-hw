@@ -4,7 +4,6 @@
 <script src='../examples/vendor/three.js/build/three.min.js'></script>
 <script src="../examples/vendor/three.js/examples/js/libs/stats.min.js"></script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<!-- ar.js -->
 <script src="../build/ar.js"></script>
 <script>THREEx.ArToolkitContext.baseURL = '../'</script>
 
@@ -12,9 +11,12 @@
 <div style='position:absolute;top:15vh;text-align:center;color:yellow;width:100%'>
 <p id='touch'></p>
 <p id='ratio'></p>
-<h3><p id='text' style ="color:red;background:white;">
-		color
-	</p></h3>
+</div>
+<div id= "heading" style='position: absolute; top: 10px; width:100%; text-align: center; z-index: 1;'>
+  <br>
+  <br>
+  <h3>HW3<h3>
+  <h3><p id = "text" style = "color :black" style="width:20%"> Which color?? </p><h3>
 </div>
 <script>
 
@@ -48,12 +50,15 @@ var arToolkitSource, arToolkitContext;
 var whRatio, halfW, halfH;
 var button1;
 var _iOSDevice;
+
 var angle = 0;
-var group;
 var omega = 0;  
+var dt = 0.1;
+var maxOmega = 5;
 var isAction = false,state=1;
 var rotate;
 var pointer;
+
 init();
 animate();
 
@@ -98,16 +103,20 @@ function init() {
 	halfW = halfH * whRatio;
 	
 	cameraHUD = new THREE.OrthographicCamera (-halfW,halfW, halfH,-halfH, -10,10);
-
-
+	
+	
 	////////////////////////////////////////////////////
 	// create a button to toggle rotation
 	//
+	var loader = new THREE.TextureLoader();
+	loader.setCrossOrigin('');
+	// load a resource
+	
 	let loader = new THREE.TextureLoader();
 	loader.setCrossOrigin(''); // 重要！
 	loader.load(
     	// resource URL
-    	'https://i.imgur.com/GKk4xDt.png',
+    	'https://i.imgur.com/KJ4pS2e.png',
     	// Function when resource is loaded
     	function(texture) {
       		console.log ('texture loaded ...')
@@ -118,12 +127,13 @@ function init() {
     	},
 
   	);
+	
 	/*var buttonSize = halfH/3;
-	button = new THREE.Mesh (new THREE.PlaneGeometry(buttonSize, buttonSize), 
-			new THREE.MeshBasicMaterial({color:"yellow", transparent:true, opacity:0.8}));	
+	//button = new THREE.Mesh (new THREE.PlaneGeometry(buttonSize, buttonSize), 
+		//new THREE.MeshBasicMaterial({color:"yellow", transparent:true, opacity:0.8}));	
 	button1 = new Button (buttonSize, 0, -halfH/2);
-	button.position.set (button1.centerX, button1.centerY, 0);
-	sceneHUD.add (button);*/
+	//button.position.set (button1.centerX, button1.centerY, 0);
+	//sceneHUD.add (button);*/
 	
 	
 	////////////////////////////////////////////////////////////////////////////////
@@ -165,7 +175,6 @@ function init() {
 		// copy projection matrix to camera
 		camera.projectionMatrix.copy( arToolkitContext.getProjectionMatrix() );
 	})
-	
 	////////////////////////////////////////////////////////////////////////////////
 	//          Create a ArMarkerControls
 	////////////////////////////////////////////////////////////////////////////////
@@ -179,61 +188,80 @@ function init() {
 	})
 
 	// add a boxGeometry
-
+	
 	group = new THREE.Group();
-	markerRoot.add (group);
-	//red	
-	let geometry0 = new THREE.CircleGeometry( 1.5, 32,0,2*Math.PI/3);
-	let material0 = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide} );
-	let circle0 = new THREE.Mesh( geometry0, material0 );
-	group.add( circle0 );  
-	//green
-	let geometry1 = new THREE.CircleGeometry( 1.5, 32,2/3*Math.PI,2*Math.PI/3);
-	let material1 = new THREE.MeshBasicMaterial( { color: 0x00ff00 , side: THREE.DoubleSide} );
-	let circle1 = new THREE.Mesh( geometry1, material1 );
-	group.add( circle1 );  
-	//blue   
-	let geometry2 = new THREE.CircleGeometry( 1.5, 32,4/3*Math.PI,2*Math.PI/3);
-	let material2 = new THREE.MeshBasicMaterial( { color: 0x0000ff , side: THREE.DoubleSide} );
-	let circle2 = new THREE.Mesh( geometry2, material2 );
-	group.add( circle2 );
-	group.rotation.x = -Math.PI/2;
+	
+	var circle0 = new THREE.Mesh (new THREE.CircleGeometry( 2, 32 , Math.PI/2, 2*Math.PI/3), new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSIde } ));
+	group.add(circle0);
+	var circle1 = new THREE.Mesh (new THREE.CircleGeometry( 2, 32 , Math.PI/2 + 2/3*Math.PI, 2*Math.PI/3), new THREE.MeshBasicMaterial( { color: 0x00ff00, side: THREE.DoubleSIde } ));
+	group.add(circle1);
+	var circle2 = new THREE.Mesh (new THREE.CircleGeometry( 2, 32 ,  Math.PI/2 - 2/3*Math.PI, 2*Math.PI/3), new THREE.MeshBasicMaterial( { color: 0x0000ff, side: THREE.DoubleSIde } ));
+	group.add(circle2);
+	markerRoot.add(group);
+	group.rotation.x -= Math.PI/2;
 	
 	group1 = new THREE.Group();
-	markerRoot.add (group1);
-	cylinder = new THREE.Mesh( new THREE.CylinderGeometry( 0, 0.05, 1, 32 ), new THREE.MeshBasicMaterial( {color: 0xffffff} ) );
-	group1.add( cylinder );
+	
+	var cylinder = new THREE.Mesh( new THREE.CylinderGeometry( 0, 0.1, 1, 32 ), new THREE.MeshBasicMaterial( {color: 0xffffff} ) );
+	group1.add (cylinder);
 	cylinder.position.z = -0.5;
 	cylinder.rotation.x = -Math.PI/2;
-	let geometry = new THREE.CircleGeometry( 0.05,32,0,2*Math.PI);
-	let material = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide} );
-	let circle = new THREE.Mesh( geometry, material );
+	
+	var circle = new THREE.Mesh (new THREE.CircleGeometry( 0.1, 32 , 0, 2*Math.PI), new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSIde } ));
 	circle.rotation.x = -Math.PI/2;
 	group1.add( circle );
+	markerRoot.add(group1);
 	
+
+	// add a boxGeometry
+
+	/*let geometry	= new THREE.BoxGeometry(1,1,1);
+	let material	= new THREE.MeshNormalMaterial({
+		transparent : true,
+		opacity: 0.5,
+		side: THREE.DoubleSide
+	}); 
+	mesh	= new THREE.Mesh( geometry, material );
+	mesh.position.y	= geometry.parameters.height/2
+		
+	markerRoot.add (mesh);*/
+
 	//////////////////////////////////////////////////////////////////////////////////
 	//		render the whole thing on the page
 	//////////////////////////////////////////////////////////////////////////////////
+	
 	stats = new Stats();
 	document.body.appendChild( stats.dom );
-	
 
 	// handle resize: can be iPAD change orientation
 	window.addEventListener('resize', function(){
 		onResize()
 	})
 	
-	if (_iOSDevice){
-		window.addEventListener('touchstart', onTouchStart, false);
+	if (_iOSDevice)
+    	window.addEventListener('touchstart', onTouchStart, false);
 		window.addEventListener('touchend', onTouchEnd, false);
-	}
-    	
 	else
-		window.addEventListener ('mousedown', onMouseDown, false);
+		wwindow.addEventListener ('mousedown', onMouseDown, false);
 		window.addEventListener ('mouseup', onMouseUp, false);
 
 }
-
+function rotating(){
+	var Angle = (angle%(Math.PI*2));
+		if(Angle >= 0 && Angle < Math.PI*2/3){
+			$('#text').css ('color', 'red'); 
+			$('#text').text('red');
+		}
+		else if(Angle >= Math.PI*2/3 && Angle < Math.PI*4/3){
+			$('#text').css ('color', 'Green');
+			$('#text').text('Green');
+		}
+		else {
+			$('#text').css ('color', 'Blue');
+			$('#text').text('Blue');  
+		}
+		
+}
 function animate() {
 	stats.update();
 	requestAnimationFrame (animate);
@@ -245,45 +273,26 @@ function animate() {
 	renderer.render (scene, camera);
 	button1.mesh.material.visible = markerRoot.visible;
 	renderer.render (sceneHUD, cameraHUD);
-	var dt = 0.05;
-	var maxOmega = 5;
 
+	//if (cubeSpin)
+	//	mesh.rotation.x += 0.1
 	if(isAction){
 		omega = omega+5*dt;
 	}
 	else{
-		omega = omega-dt;
+		omega = omega-1*dt;
 	}
+	
 	omega = clamp(omega,0,maxOmega);
-	
-	if((group1.rotation.y % (Math.PI*2)) >= 5/6*Math.PI & (group1.rotation.y % (Math.PI*2)) < 9/6*Math.PI){
-		document.getElementById('text').innerHTML = 'blue';
-		document.getElementById('text').style.color = 'blue';
-	}
-	
-	else if((group1.rotation.y % (Math.PI*2)) >= 1/6*Math.PI & (group1.rotation.y % (Math.PI*2)) < 5/6*Math.PI){
-		document.getElementById('text').innerHTML = 'green';
-		document.getElementById('text').style.color = 'green';
-	}
-	
-	else {
-		document.getElementById('text').innerHTML = 'red';
-		document.getElementById('text').style.color = 'red';
-	}
-	
 	angle += omega*dt;
 	group1.rotation.y = angle;
 	
+	rotating();
+
 	renderer.render (scene, camera);	
 	
 }
-function clamp (x, xLo, xHi) {
-	if (x < xLo) return xLo;
-	if (x > xHi) return xHi;
-	else return x;
-}
-
-
+	
 function onResize(){
 	arToolkitSource.onResize()	
 	arToolkitSource.copySizeTo(renderer.domElement)	
@@ -331,7 +340,6 @@ function pickCompute (ndcX, ndcY) {
 	}
 
 }
-
 function onMouseUp (event) {
 	// do nothing yet ...
 	isAction = false;
@@ -369,7 +377,6 @@ function onTouchEnd (event) {
         
 		isAction=!isAction;
 				
-		
 	}	
 }
 </script>
