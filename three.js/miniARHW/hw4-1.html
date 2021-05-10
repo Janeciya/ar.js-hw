@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+</style>
+</head>
+<body> 
+
+
+<script src="https://threejs.org/build/three.min.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+<script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+
+<script>
+
+var camera, scene, renderer;
+var cannon;
+var clock;
+var balls =[];
+
+var keyboard = new KeyboardState();
+
+class Ball {
+	constructor (pos, vel,mesh) {
+		this.pos = pos;
+		this.vel = vel;
+		this.force = new THREE.Vector3(0,-10,0);
+		this.mesh = mesh;
+		scene.add (this.mesh);
+
+	}
+
+}
+init();
+animate();
+
+function init() {
+
+	renderer = new THREE.WebGLRenderer({antialias:true});
+	renderer.setSize (window.innerWidth,window.innerHeight);
+	renderer.setClearColor(0x888888);
+	document.body.appendChild(renderer.domElement);
+	
+	camera = new THREE.PerspectiveCamera(50,window.innerWidth/window.innerHeight,1,1000);
+	camera.position.set(0,100,100);
+	var controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+	scene = new THREE.Scene();
+	var grid = new THREE.GridHelper(200, 20, 'red', 'white');
+	scene.add(grid);
+
+	///////////////////////////////////////////////////////////
+
+	cannon = makeCannon();
+	scene.add (cannon);
+	
+	clock = new THREE.Clock();
+  
+	//// settings //////////////////////
+	let barrel = cannon.children[1];
+	barrel.rotation.z = -Math.PI/6; // barrel angle
+	cannon.rotation.y = -Math.PI/6;
+
+}
+
+function makeCannon() {
+	let cannon = new THREE.Group();
+	let body = new THREE.Mesh (new THREE.SphereGeometry(10,20,20, Math.PI+Math.PI*0.1,Math.PI*1.8,0,Math.PI/2),
+		new THREE.MeshNormalMaterial());
+	let barrelPart = new THREE.Group();
+	let barrel = new THREE.Mesh (new THREE.CylinderGeometry(2,2,20,18), new THREE.MeshNormalMaterial());
+	barrelPart.add (barrel);
+	barrel.position.y = 10;
+ 
+	cannon.add (body, barrelPart);
+	return cannon;
+}
+
+function computeInitPosVel (ballmesh) {
+
+	let barrel = cannon.children[1];
+	const SPEED = 25;
+	let vel = barrel.localToWorld (new THREE.Vector3(0,20,0)).sub (barrel.localToWorld (new THREE.Vector3(0,0,0))).setLength (SPEED);
+	let pos = barrel.localToWorld (new THREE.Vector3(0,22,0));
+	let ball = new Ball(pos,vel,ballmesh);
+
+	return ball;
+}
+
+var toggle=0;
+
+function animate() {
+
+	requestAnimationFrame(animate);
+	renderer.render(scene,camera);
+	let dt = clock.getDelta();
+
+	keyboard.update();
+
+	if (keyboard.down('up')) { 
+		if(cannon.children[1].rotation.z<0){
+			cannon.children[1].rotation.z += Math.PI/50; 
+		}
+	}
+	if (keyboard.down('down')) { 
+		if(cannon.children[1].rotation.z>-Math.PI/2){
+			cannon.children[1].rotation.z -= Math.PI/50; 
+		}
+	}
+	if (keyboard.pressed('left')) { 
+		cannon.children[0].rotation.y -= Math.PI/50; 
+		cannon.children[1].rotation.y -= Math.PI/50;
+	}
+	if (keyboard.pressed('right')) { 
+		cannon.children[0].rotation.y += Math.PI/50; 
+		cannon.children[1].rotation.y += Math.PI/50;
+	}
+	
+	
+	if (keyboard.down('space')) {
+		let ballmesh = new THREE.Mesh (new THREE.SphereGeometry(2,8,8), new THREE.MeshBasicMaterial({color:'yellow',wireframe:true}));
+		let ball = computeInitPosVel(ballmesh);		
+		balls.push(ball);
+
+	}
+	
+	for(let i=0 ; i<balls.length ; i++){
+		if (balls[i].pos.y < 0) continue;
+		balls[i].vel.add (balls[i].force.clone().multiplyScalar(dt));
+		balls[i].pos.add (balls[i].vel.clone().multiplyScalar(dt));
+		balls[i].mesh.position.copy (balls[i].pos);
+	
+	
+	}
+	
+}
+
+</script>
+</body>
+</html>
